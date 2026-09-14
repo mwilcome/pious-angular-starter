@@ -1,0 +1,9 @@
+# Site URL (placeholder): https://example.netlify.app
+[build]
+  command = "npm run build"
+  publish = "dist/pious-angular-starter/browser"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
