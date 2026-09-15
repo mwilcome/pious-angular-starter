@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { stdin as input, stdout as output } from 'node:process';
 import { createInterface } from 'node:readline/promises';
@@ -8,17 +17,28 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { runNpm } from './lib/run-npm.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SITE_TS = 'src/app/core/site.ts';
 const SUPABASE_TS = 'src/app/core/supabase.ts';
+const DEFAULT_SITE = 'https://example.netlify.app';
+const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', '.angular', 'coverage']);
 
-function read(rel) {
-  return readFileSync(path.join(root, rel), 'utf8');
-}
+function usage() {
+  return `Usage: npm run create -- [options]
 
-function write(rel, contents) {
-  writeFileSync(path.join(root, rel), contents);
+  Spawn a new app from this template (default), or restamp this checkout.
+
+  --name <kebab-case>   App name (prompted when omitted)
+  --site <url>          Public site URL (default ${DEFAULT_SITE})
+  --out <dir>           Copy destination (default ../<name>)
+  --in-place            Restamp this checkout; do not copy
+  --host netlify|none   Keep Netlify config (default) or skip ("I'll configure deploy myself")
+  --supabase            Add Supabase placeholder stub (default off)
+  --git / --no-git      git init in the new folder only (default: yes, copy mode)
+  --help                Show this message
+
+  Does not create GitHub remotes, push, or call the Netlify API.`;
 }
 
 function quote(value) {
@@ -30,29 +50,6 @@ function kebabToTitle(name) {
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function currentFolderName() {
-  return path.basename(root);
-}
-
-function currentPackageName() {
-  try {
-    return JSON.parse(read('package.json')).name || currentFolderName();
-  } catch {
-    return currentFolderName();
-  }
-}
-
-function angularProjectName(pkgName) {
-  try {
-    const json = JSON.parse(read('angular.json'));
-    const names = Object.keys(json.projects ?? {});
-    if (names.includes(pkgName)) return pkgName;
-    return names[0] ?? pkgName;
-  } catch {
-    return pkgName;
-  }
 }
 
 function validateName(name) {
@@ -73,6 +70,13 @@ function validateSite(site) {
   }
 }
 
+function normalizeHost(raw) {
+  const value = String(raw).trim().toLowerCase();
+  if (value === 'netlify' || value === 'y' || value === 'yes') return 'netlify';
+  if (value === 'none' || value === 'skip' || value === 'n' || value === 'no') return 'none';
+  throw new Error(`Invalid --host "${raw}". Use "netlify" or "none".`);
+}
+
 async function prompt(question, fallback) {
   if (!input.isTTY) return fallback;
   const rl = createInterface({ input, output });
@@ -81,21 +85,109 @@ async function prompt(question, fallback) {
   return answer.trim() || fallback;
 }
 
-async function promptYesNo(question) {
-  const answer = await prompt(`${question} (y/N)`, 'N');
+async function promptYesNo(question, defaultYes = false) {
+  const fallback = defaultYes ? 'Y' : 'N';
+  const hint = defaultYes ? 'Y/n' : 'y/N';
+  const answer = await prompt(`${question} (${hint})`, fallback);
+  if (defaultYes) return !/^n(o)?$/i.test(answer);
   return /^y(es)?$/i.test(answer);
 }
 
-function restampPackageJson(name) {
-  const pkg = JSON.parse(read('package.json'));
+function isEnvFile(name) {
+  if (name === '.env.example') return false;
+  return name === '.env' || name.startsWith('.env.');
+}
+
+function isInside(child, parent) {
+  const rel = path.relative(parent, child);
+  return rel === '' || (rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+function shouldCopy(src, fromRoot, destRoot) {
+  if (isInside(src, destRoot)) return false;
+  const rel = path.relative(fromRoot, src);
+  if (rel === '') return true;
+  for (const part of rel.split(path.sep)) {
+    if (SKIP_DIR_NAMES.has(part) || isEnvFile(part)) return false;
+  }
+  return true;
+}
+
+function copyTemplate(fromRoot, destRoot) {
+  if (existsSync(destRoot)) {
+    const info = statSync(destRoot);
+    if (!info.isDirectory()) {
+      throw new Error(`Destination "${destRoot}" exists and is not a directory.`);
+    }
+    if (readdirSync(destRoot).length > 0) {
+      throw new Error(`Destination "${destRoot}" exists and is not empty.`);
+    }
+  } else {
+    mkdirSync(destRoot, { recursive: true });
+  }
+
+  cpSync(fromRoot, destRoot, {
+    recursive: true,
+    filter: (src) => shouldCopy(src, fromRoot, destRoot),
+  });
+}
+
+class Target {
+  constructor(dir) {
+    this.dir = dir;
+  }
+
+  read(rel) {
+    return readFileSync(path.join(this.dir, rel), 'utf8');
+  }
+
+  write(rel, contents) {
+    writeFileSync(path.join(this.dir, rel), contents);
+  }
+
+  exists(rel) {
+    return existsSync(path.join(this.dir, rel));
+  }
+
+  remove(rel) {
+    const full = path.join(this.dir, rel);
+    if (existsSync(full)) rmSync(full, { force: true });
+  }
+}
+
+function currentFolderName(dir) {
+  return path.basename(dir);
+}
+
+function currentPackageName(target) {
+  try {
+    return JSON.parse(target.read('package.json')).name || currentFolderName(target.dir);
+  } catch {
+    return currentFolderName(target.dir);
+  }
+}
+
+function angularProjectName(target, pkgName) {
+  try {
+    const json = JSON.parse(target.read('angular.json'));
+    const names = Object.keys(json.projects ?? {});
+    if (names.includes(pkgName)) return pkgName;
+    return names[0] ?? pkgName;
+  } catch {
+    return pkgName;
+  }
+}
+
+function restampPackageJson(target, name) {
+  const pkg = JSON.parse(target.read('package.json'));
   pkg.name = name;
   pkg.description ??= 'Generic Angular 22 SPA starter for Netlify.';
   pkg.license ??= 'MIT';
-  write('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+  target.write('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
 }
 
-function restampNetlify(name, site) {
-  write(
+function restampNetlify(target, name, site) {
+  target.write(
     'netlify.toml',
     `# Site URL (placeholder): ${site}
 [build]
@@ -110,13 +202,13 @@ function restampNetlify(name, site) {
   );
 }
 
-function restampIndexTitle(appTitle) {
-  const html = read('src/index.html').replace(/<title>[^<]*<\/title>/, `<title>${appTitle}</title>`);
-  write('src/index.html', html);
+function restampIndexTitle(target, appTitle) {
+  const html = target.read('src/index.html').replace(/<title>[^<]*<\/title>/, `<title>${appTitle}</title>`);
+  target.write('src/index.html', html);
 }
 
-function restampAngularJson(oldName, newName) {
-  const json = JSON.parse(read('angular.json'));
+function restampAngularJson(target, oldName, newName) {
+  const json = JSON.parse(target.read('angular.json'));
   if (json.projects?.[oldName] && oldName !== newName) {
     json.projects[newName] = json.projects[oldName];
     delete json.projects[oldName];
@@ -141,21 +233,47 @@ function restampAngularJson(oldName, newName) {
   };
   walk(project);
 
-  write('angular.json', `${JSON.stringify(json, null, 2)}\n`);
+  target.write('angular.json', `${JSON.stringify(json, null, 2)}\n`);
 }
 
-function restampReadme(newName, site) {
-  let md = read('README.md');
+function shipBlock(name, host) {
+  if (host === 'none') {
+    return `<!-- ship-block -->
+\`\`\`bash
+npm run build
+\`\`\`
+
+Static output is \`dist/${name}/browser\`. Wire your own host; configure history fallback so unknown paths serve \`index.html\`.
+<!-- /ship-block -->`;
+  }
+
+  return `<!-- ship-block -->
+\`\`\`bash
+npm run build
+\`\`\`
+
+In the Netlify dashboard, Import from GitHub and point the site at this repo. \`netlify.toml\` already sets \`publish\` to \`dist/${name}/browser\` and rewrites \`/*\` to \`/index.html\` (SPA). Do not add the Netlify Angular SSR plugin. This script does not call the Netlify API or store credentials.
+<!-- /ship-block -->`;
+}
+
+function replaceMarked(md, tag, replacement) {
+  const re = new RegExp(`<!-- ${tag} -->[\\s\\S]*?<!-- /${tag} -->`);
+  if (!re.test(md)) {
+    throw new Error(`README.md missing <!-- ${tag} --> markers.`);
+  }
+  return md.replace(re, replacement);
+}
+
+function restampReadme(target, newName, site, host) {
+  let md = target.read('README.md');
   md = md.replace(/^# .+$/m, `# ${newName}`);
-  md = md.replace(
-    /<!-- site-url -->[\s\S]*?<!-- \/site-url -->/,
-    `<!-- site-url -->${site}<!-- /site-url -->`,
-  );
-  write('README.md', md);
+  md = replaceMarked(md, 'site-url', `<!-- site-url -->${site}<!-- /site-url -->`);
+  md = replaceMarked(md, 'ship-block', shipBlock(newName, host));
+  target.write('README.md', md);
 }
 
-function restampSite(name, appTitle, site) {
-  write(
+function restampSite(target, name, appTitle, site) {
+  target.write(
     SITE_TS,
     `/** Public identity. Restamped by \`npm run create\`. */
 export const appName = ${quote(name)};
@@ -165,45 +283,53 @@ export const siteUrl = ${quote(site)};
   );
 }
 
-function restampLicense(name) {
-  if (!existsSync(path.join(root, 'LICENSE'))) return;
+function restampLicense(target, name) {
+  if (!target.exists('LICENSE')) return;
   const year = new Date().getFullYear();
-  const license = read('LICENSE').replace(
+  const license = target.read('LICENSE').replace(
     /Copyright \(c\) \d+ .+ contributors/,
     `Copyright (c) ${year} ${name} contributors`,
   );
-  write('LICENSE', license);
+  target.write('LICENSE', license);
 }
 
-function enableSupabase() {
+function enableSupabase(target) {
   const install = runNpm(['install', '@supabase/supabase-js'], {
-    cwd: root,
+    cwd: target.dir,
     stdio: 'inherit',
   });
   if (install.status !== 0) {
     throw new Error('Failed to add @supabase/supabase-js.');
   }
 
-  write(
+  target.write(
     SUPABASE_TS,
     `/** Placeholder strings only. Angular CLI does not auto-load .env; wire a client later. */
 export const supabaseUrl = 'https://YOUR_PROJECT.supabase.co';
 export const supabaseAnonKey = 'YOUR_ANON_KEY';
 `,
   );
-  write('.env.example', `NG_APP_SUPABASE_URL=\nNG_APP_SUPABASE_ANON_KEY=\n`);
+  target.write('.env.example', `NG_APP_SUPABASE_URL=\nNG_APP_SUPABASE_ANON_KEY=\n`);
   console.log('Supabase stub added (placeholders only; .env is not auto-loaded).');
 }
 
-function gitInit() {
-  if (existsSync(path.join(root, '.git'))) {
+function gitInit(target) {
+  if (existsSync(path.join(target.dir, '.git'))) {
     console.log('git already initialized.');
     return;
   }
-  const result = spawnSync('git', ['init'], { cwd: root, stdio: 'inherit' });
+  const result = spawnSync('git', ['init'], { cwd: target.dir, stdio: 'inherit' });
   if (result.status !== 0) {
     throw new Error('git init failed.');
   }
+}
+
+function applyHost(target, name, site, host) {
+  if (host === 'none') {
+    target.remove('netlify.toml');
+    return;
+  }
+  restampNetlify(target, name, site);
 }
 
 async function main() {
@@ -211,37 +337,93 @@ async function main() {
     options: {
       name: { type: 'string' },
       site: { type: 'string' },
+      out: { type: 'string' },
+      host: { type: 'string' },
       supabase: { type: 'boolean' },
       git: { type: 'boolean' },
+      'no-git': { type: 'boolean' },
+      'in-place': { type: 'boolean' },
+      help: { type: 'boolean', short: 'h' },
     },
     allowPositionals: false,
   });
 
-  const oldName = angularProjectName(currentPackageName());
-  const name = values.name ?? (await prompt('App name (kebab-case)', currentFolderName()));
-  const site = values.site ?? (await prompt('Public site URL', 'https://example.netlify.app'));
-  const supabase =
-    values.supabase ?? (input.isTTY ? await promptYesNo('Enable Supabase stub?') : false);
-  const git = values.git ?? (input.isTTY ? await promptYesNo('git init?') : false);
+  if (values.help) {
+    console.log(usage());
+    return;
+  }
 
+  const inPlace = Boolean(values['in-place']);
+  if (inPlace && values.out) {
+    throw new Error('Use either --in-place or --out, not both.');
+  }
+
+  const name =
+    values.name ?? (await prompt('App name (kebab-case)', currentFolderName(sourceRoot)));
   validateName(name);
+
+  const site = values.site ?? (await prompt('Public site URL', DEFAULT_SITE));
   validateSite(site);
+
+  const hostRaw =
+    values.host ??
+    (await prompt('Host (netlify, or none = I\'ll configure deploy myself)', 'netlify'));
+  const host = normalizeHost(hostRaw);
+
+  const supabase =
+    values.supabase ?? (input.isTTY ? await promptYesNo('Enable Supabase stub?', false) : false);
+
+  let git;
+  if (inPlace) {
+    git = false;
+    if (values.git && !values['no-git']) {
+      console.log('git init is only for spawned folders; skipped --in-place.');
+    }
+  } else if (values['no-git']) {
+    git = false;
+  } else if (values.git === true) {
+    git = true;
+  } else {
+    git = input.isTTY ? await promptYesNo('git init in the new folder?', true) : true;
+  }
+
   const appTitle = kebabToTitle(name);
+  let destDir = sourceRoot;
 
-  restampPackageJson(name);
-  restampNetlify(name, site);
-  restampIndexTitle(appTitle);
-  restampAngularJson(oldName, name);
-  restampReadme(name, site);
-  restampSite(name, appTitle, site);
-  restampLicense(name);
+  if (!inPlace) {
+    const outRaw = values.out ?? (await prompt('Output folder', path.join('..', name)));
+    destDir = path.resolve(process.cwd(), outRaw);
+    if (path.resolve(destDir) === path.resolve(sourceRoot)) {
+      throw new Error('Destination is the template root. Use --in-place to restamp this checkout.');
+    }
+    copyTemplate(sourceRoot, destDir);
+    console.log(`Copied template → ${destDir}`);
+  }
 
-  if (supabase) enableSupabase();
-  if (git) gitInit();
+  const target = new Target(destDir);
+  const oldName = angularProjectName(target, currentPackageName(target));
 
-  console.log(`Stamped name=${name} title=${appTitle} site=${site} supabase=${supabase ? 'on' : 'off'} git=${git ? 'yes' : 'no'}`);
-  if (currentFolderName() !== name) {
-    console.log(`Folder is still "${currentFolderName()}". Rename it on disk if you want it to match --name.`);
+  restampPackageJson(target, name);
+  applyHost(target, name, site, host);
+  restampIndexTitle(target, appTitle);
+  restampAngularJson(target, oldName, name);
+  restampReadme(target, name, site, host);
+  restampSite(target, name, appTitle, site);
+  restampLicense(target, name);
+
+  if (supabase) enableSupabase(target);
+  if (git) gitInit(target);
+
+  const mode = inPlace ? 'in-place' : 'spawn';
+  console.log(
+    `Stamped mode=${mode} name=${name} title=${appTitle} site=${site} host=${host} supabase=${supabase ? 'on' : 'off'} git=${git ? 'yes' : 'no'}`,
+  );
+  if (inPlace && currentFolderName(sourceRoot) !== name) {
+    console.log(
+      `Folder is still "${currentFolderName(sourceRoot)}". Rename it on disk if you want it to match --name.`,
+    );
+  } else if (!inPlace && currentFolderName(destDir) !== name) {
+    console.log(`Spawned folder is "${currentFolderName(destDir)}" (app name is "${name}").`);
   }
 }
 
