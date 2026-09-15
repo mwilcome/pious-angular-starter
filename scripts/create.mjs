@@ -318,7 +318,7 @@ function gitInit(target) {
     console.log('git already initialized.');
     return;
   }
-  const result = spawnSync('git', ['init'], { cwd: target.dir, stdio: 'inherit' });
+  const result = spawnSync('git', ['init', '-b', 'main'], { cwd: target.dir, stdio: 'inherit' });
   if (result.status !== 0) {
     throw new Error('git init failed.');
   }
