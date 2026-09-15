@@ -78,11 +78,9 @@ while true; do
   cat <<'EOF'
 
 App name (kebab-case)
-This becomes the npm package name in package.json, the Angular project name and
-output folder (dist/<name>/browser) in angular.json, the browser tab title,
-src/app/core/site.ts, README heading, and LICENSE copyright line. It also
-suggests the default destination folder. Use lowercase letters, digits, and
-hyphens only — for example garden-tracker — not spaces or underscores.
+Goes into package.json, angular.json (project + dist/<name>/browser), the
+browser tab title, site.ts, README, and LICENSE. Also used as the default
+folder name. Lowercase, digits, hyphens — garden-tracker, not Garden Tracker.
 
 EOF
   name="$(ask "App name (kebab-case)")"
@@ -97,10 +95,9 @@ while true; do
   cat <<EOF
 
 Destination folder
-This template is COPIED into a new folder so this checkout stays reusable.
-Default is a sibling folder ${default_dest}. The copy skips node_modules, .git,
-dist, .angular, coverage, and secret .env files. Do not choose this template
-folder itself (use --in-place only if you mean to restamp this checkout).
+We copy this template into a new folder. Default: ${default_dest} (next to this
+checkout). Skips node_modules, .git, dist, .angular, coverage, and .env files.
+Don't pick this template folder — that's --in-place, not a spawn.
 
 EOF
   dest="$(ask "Destination folder" "$default_dest")"
@@ -114,10 +111,9 @@ done
 
 cat <<'EOF'
 
-Site URL (optional placeholder)
-Written into src/app/core/site.ts, the README site-url marker, and (if you keep
-Netlify) a comment in netlify.toml. You can change it later. Leave blank to use
-https://example.netlify.app.
+Site URL (optional)
+Placeholder in site.ts, README, and netlify.toml if you keep Netlify.
+Change it later. Blank = https://example.netlify.app.
 
 EOF
 site="$(ask "Public site URL" "https://example.netlify.app")"
@@ -126,14 +122,12 @@ host=""
 while true; do
   cat <<EOF
 
-Hosting: Netlify vs configure-myself
-  netlify  Keep netlify.toml. Static build publishes dist/${name}/browser and
-           unknown routes serve index.html (SPA). Later, in the Netlify
-           dashboard, Import from GitHub — this script never logs in or stores
-           Netlify credentials.
-  none     Remove netlify.toml ("I'll configure deploy myself"). README will
-           tell you to host dist/${name}/browser and set history fallback so
-           unknown paths serve index.html.
+Hosting
+  netlify  Keep netlify.toml. Publish dir is dist/${name}/browser; unknown
+           routes hit index.html. In Netlify: Import from GitHub. This script
+           does not log in.
+  none     Drop netlify.toml. You host dist/${name}/browser yourself and set a
+           fallback to index.html.
 
 EOF
   host_raw="$(ask "Host (netlify, or none = I'll configure deploy myself)" "netlify")"
@@ -145,21 +139,20 @@ done
 cat <<'EOF'
 
 Supabase (optional)
-Adds placeholder URL/anon-key files and the @supabase/supabase-js package.
-Angular CLI does not load .env for you. Default is No — skip unless you already
-plan to wire a Supabase client.
+Adds placeholder URL/anon-key files and @supabase/supabase-js.
+Angular CLI won't load .env. Default No. Skip unless you need it.
 
 EOF
 supabase_args=()
-if ask_yes_no "Enable Supabase stub?" 0; then
+if ask_yes_no "Add a Supabase stub?" 0; then
   supabase_args=(--supabase)
 fi
 
 cat <<'EOF'
 
 git init (new folder only)
-Runs git init -b main in the NEW folder. It does not add a GitHub remote, does
-not push, and does not touch git in this template checkout. Default is Yes.
+Runs git init -b main in the new folder. No remote, no push, template .git is
+untouched. Default Yes.
 
 EOF
 git_args=(--git)
