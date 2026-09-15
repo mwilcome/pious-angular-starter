@@ -10,6 +10,16 @@ Official refs:
 - https://github.com/angular/skills
 - https://docs.netlify.com/build/frameworks/framework-setup-guides/angular/
 
+## Spawn vs in-place
+
+This checkout is a **template**. Two front doors, same engine (`scripts/create.mjs`: copy → stamp → optional git).
+
+- **Humans:** `./scripts/spawn.sh` (macOS/Linux) or `scripts/spawn.ps1` / `scripts/spawn.cmd` (Windows). Each question prints a plain explanation first. `npm run create` with no flags is the same explained Q&A via Node (Windows-friendly).
+- **AI:** `npm run create -- --name my-app --dest ../my-app --site … --host netlify|none --no-git`. `--dest` and `--out` are aliases. Copy skips `node_modules`, `.git`, `dist`, `.angular`, `coverage`, `.env`, and `.env.*`.
+- `--in-place`: restamp this checkout without copy (package name, titles, publish path, `src/app/core/site.ts`, README markers). Does not rename the folder on disk.
+
+`git init` (default yes on spawn) runs in the **new** folder only. Never add a GitHub remote or push from the script.
+
 ## Generate
 
 Use `npx ng generate`. New components: standalone, `ChangeDetectionStrategy.OnPush`, `inject()` instead of constructor DI, `@if` / `@for` / `@switch`. Prefer `input()` / `input.required()` / `model()` / `httpResource` for GETs (`provideHttpClient()` is already in `app.config.ts`).
@@ -21,6 +31,9 @@ Landing route is eager; `lab` and `**` are `loadComponent`. Keep the wildcard la
 ## Hosting
 
 Static SPA. Publish dir is `dist/<package-name>/browser` (explicit `outputPath.base` in `angular.json`). Do not flatten `browser` unless you verified the output. Do not add `@netlify/angular-runtime`.
+
+- Default `--host netlify`: keep `netlify.toml` SPA rewrite (`/*` → `/index.html`). Document Netlify dashboard **Import from GitHub** only — no Netlify API or credential scripting.
+- `--host none`: remove `netlify.toml` from the spawn. README ship section is static build → `dist/<name>/browser`; the operator wires the host and history fallback to `index.html`.
 
 ## Git
 
