@@ -4,27 +4,52 @@ Generic Angular 22 SPA **template**. Spawn a new app from this checkout, or rest
 
 **Need:** Node `^22.22.3 || ^24.15.0 || >=26.0.0` and npm.
 
-## Spawn
+## Humans
 
-Default: copy into a new folder so this repo stays a usable template.
+After you clone this repo, run the spawn wizard. It copies the template into a **new folder** (this checkout stays reusable) and asks a few questions. Each question explains what your answer changes before you type.
+
+**macOS / Linux**
 
 ```bash
-npm run create -- --name my-app --site https://example.netlify.app
+./scripts/spawn.sh
 ```
 
-Output defaults to `../my-app`. Then `cd ../my-app`, `npm install`, `npm start`.
+**Windows**
 
-`--git` (default on for copy) runs `git init` in the **new** folder only. The script never adds a GitHub remote or pushes.
+```bat
+scripts\spawn.ps1
+```
 
-### Flags
+or `scripts\spawn.cmd`. If those are awkward, run `npm run create` — Node asks the same explained questions.
+
+You will be asked at least:
+
+1. **App name** (kebab-case) — package.json name, angular.json project + `outputPath`, titles, default folder name
+2. **Destination folder** — where the copy lands (default `../<name>`); template stays intact
+3. **Site URL** — optional placeholder in `site.ts`, README, and netlify comments
+4. **Netlify vs configure-myself** — keep or remove `netlify.toml` and the README ship block
+5. **Supabase** — y/N (default N); optional stub files / dependency
+6. **git init** — y/N (default Y); `git init` in the **new** folder only (never remote/push)
+
+Then `cd` into the new folder, `npm install`, `npm start`.
+
+## AI
+
+Flags / non-interactive (preferred for agents). Same engine: copy → stamp → optional git.
+
+```bash
+npm run create -- --name my-app --dest ../my-app --site https://example.netlify.app --host netlify --no-git
+```
+
+`--dest` and `--out` are the same flag. `--in-place` restamps this checkout without copy.
 
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--name` | prompt / current folder | kebab-case app name |
 | `--site` | `https://example.netlify.app` | public site URL |
-| `--out` | `../<name>` | destination folder (copy mode) |
+| `--dest` (`--out`) | `../<name>` | destination folder (copy mode) |
 | `--in-place` | off | restamp this checkout; do not copy |
-| `--host` | `netlify` | `netlify` keeps `netlify.toml`; `none` skips Netlify ("I'll configure deploy myself") |
+| `--host` | `netlify` | `netlify` keeps `netlify.toml`; `none` skips Netlify |
 | `--supabase` | off | placeholder Supabase client strings (Angular CLI does **not** load `.env`) |
 | `--git` | on (copy mode) | `git init` in the new folder only |
 | `--no-git` | | skip `git init` |

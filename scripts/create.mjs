@@ -24,16 +24,57 @@ const SUPABASE_TS = 'src/app/core/supabase.ts';
 const DEFAULT_SITE = 'https://example.netlify.app';
 const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', '.angular', 'coverage']);
 
+const EXPLAIN = {
+  name: `App name (kebab-case)
+This becomes the npm package name in package.json, the Angular project name and
+output folder (dist/<name>/browser) in angular.json, the browser tab title,
+src/app/core/site.ts, README heading, and LICENSE copyright line. It also
+suggests the default destination folder. Use lowercase letters, digits, and
+hyphens only — for example garden-tracker — not spaces or underscores.`,
+
+  dest: `Destination folder
+This template is COPIED into a new folder so this checkout stays reusable.
+Default is a sibling folder ../<name>. The copy skips node_modules, .git, dist,
+.angular, coverage, and secret .env files. Do not choose this template folder
+itself (use --in-place only if you mean to restamp this checkout).`,
+
+  site: `Site URL (optional placeholder)
+Written into src/app/core/site.ts, the README site-url marker, and (if you keep
+Netlify) a comment in netlify.toml. You can change it later. Leave blank to use
+${DEFAULT_SITE}.`,
+
+  host: `Hosting: Netlify vs configure-myself
+  netlify  Keep netlify.toml. Static build publishes dist/<name>/browser and
+           unknown routes serve index.html (SPA). Later, in the Netlify
+           dashboard, Import from GitHub — this script never logs in or stores
+           Netlify credentials.
+  none     Remove netlify.toml ("I'll configure deploy myself"). README will
+           tell you to host dist/<name>/browser and set history fallback so
+           unknown paths serve index.html.`,
+
+  supabase: `Supabase (optional)
+Adds placeholder URL/anon-key files and the @supabase/supabase-js package.
+Angular CLI does not load .env for you. Default is No — skip unless you already
+plan to wire a Supabase client.`,
+
+  git: `git init (new folder only)
+Runs git init -b main in the NEW folder. It does not add a GitHub remote, does
+not push, and does not touch git in this template checkout. Default is Yes.`,
+};
+
 function usage() {
-  return `Usage: npm run create -- [options]
+  return `Usage:
+  Humans:  ./scripts/spawn.sh
+           Windows: scripts\\spawn.ps1  or  scripts\\spawn.cmd
+           or: npm run create          (same questions, via Node)
 
-  Spawn a new app from this template (default), or restamp this checkout.
+  AI:      npm run create -- --name my-app --dest ../my-app --site ${DEFAULT_SITE} --host netlify --no-git
 
-  --name <kebab-case>   App name (prompted when omitted)
+  --name <kebab-case>   App name
   --site <url>          Public site URL (default ${DEFAULT_SITE})
-  --out <dir>           Copy destination (default ../<name>)
+  --dest <dir>          Copy destination (default ../<name>); --out is an alias
   --in-place            Restamp this checkout; do not copy
-  --host netlify|none   Keep Netlify config (default) or skip ("I'll configure deploy myself")
+  --host netlify|none   Keep Netlify config (default) or skip
   --supabase            Add Supabase placeholder stub (default off)
   --git / --no-git      git init in the new folder only (default: yes, copy mode)
   --help                Show this message
@@ -77,20 +118,56 @@ function normalizeHost(raw) {
   throw new Error(`Invalid --host "${raw}". Use "netlify" or "none".`);
 }
 
+function explain(body) {
+  console.log(`\n${body.trim()}\n`);
+}
+
+async function ask(rl, question, fallback) {
+  const suffix = fallback === undefined ? '' : ` [${fallback}]`;
+  const answer = await rl.question(`${question}${suffix}: `);
+  const trimmed = answer.trim();
+  return trimmed || fallback;
+}
+
+function parseYesNo(answer, defaultYes) {
+  if (!answer) return defaultYes;
+  if (/^n(o)?$/i.test(answer)) return false;
+  if (/^y(es)?$/i.test(answer)) return true;
+  return defaultYes;
+}
+
+async function askYesNo(rl, question, defaultYes = false) {
+  const hint = defaultYes ? 'Y/n' : 'y/N';
+  const fallback = defaultYes ? 'Y' : 'N';
+  const answer = await ask(rl, `${question} (${hint})`, fallback);
+  return parseYesNo(answer, defaultYes);
+}
+
 async function prompt(question, fallback) {
   if (!input.isTTY) return fallback;
   const rl = createInterface({ input, output });
-  const answer = await rl.question(`${question} [${fallback}]: `);
-  rl.close();
-  return answer.trim() || fallback;
+  try {
+    return await ask(rl, question, fallback);
+  } finally {
+    rl.close();
+  }
 }
 
 async function promptYesNo(question, defaultYes = false) {
-  const fallback = defaultYes ? 'Y' : 'N';
-  const hint = defaultYes ? 'Y/n' : 'y/N';
-  const answer = await prompt(`${question} (${hint})`, fallback);
-  if (defaultYes) return !/^n(o)?$/i.test(answer);
-  return /^y(es)?$/i.test(answer);
+  if (!input.isTTY) return defaultYes;
+  const rl = createInterface({ input, output });
+  try {
+    return await askYesNo(rl, question, defaultYes);
+  } finally {
+    rl.close();
+  }
+}
+
+function destFlag(values) {
+  if (values.dest != null && values.out != null && values.dest !== values.out) {
+    throw new Error('Use only one of --dest or --out (they mean the same thing).');
+  }
+  return values.dest ?? values.out;
 }
 
 function isEnvFile(name) {
@@ -332,12 +409,84 @@ function applyHost(target, name, site, host) {
   restampNetlify(target, name, site);
 }
 
+async function askName(rl, rich) {
+  const fallback = rich ? undefined : currentFolderName(sourceRoot);
+  for (;;) {
+    if (rich) explain(EXPLAIN.name);
+    const name = await ask(rl, 'App name (kebab-case)', fallback);
+    try {
+      if (!name) throw new Error('App name is required. Example: garden-tracker');
+      validateName(name);
+      return name;
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      if (!rich && !input.isTTY) throw err;
+    }
+  }
+}
+
+async function askDest(rl, name, rich) {
+  const fallback = path.join('..', name);
+  for (;;) {
+    if (rich) explain(EXPLAIN.dest.replaceAll('<name>', name));
+    const raw = await ask(rl, 'Destination folder', fallback);
+    const destDir = path.resolve(process.cwd(), raw || fallback);
+    if (path.resolve(destDir) === path.resolve(sourceRoot)) {
+      const msg = 'Destination is the template root. Pick another folder (or use --in-place).';
+      if (!rich && !input.isTTY) throw new Error(msg);
+      console.error(msg);
+      continue;
+    }
+    return { destRaw: raw || fallback, destDir };
+  }
+}
+
+async function askSite(rl, rich) {
+  for (;;) {
+    if (rich) explain(EXPLAIN.site);
+    const site = await ask(rl, 'Public site URL', DEFAULT_SITE);
+    try {
+      validateSite(site);
+      return site;
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      if (!rich && !input.isTTY) throw err;
+    }
+  }
+}
+
+async function askHost(rl, rich) {
+  for (;;) {
+    if (rich) explain(EXPLAIN.host);
+    const raw = await ask(rl, 'Host (netlify, or none = I\'ll configure deploy myself)', 'netlify');
+    try {
+      return normalizeHost(raw);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+      if (!rich && !input.isTTY) throw err;
+    }
+  }
+}
+
+async function collectFromHuman(rl) {
+  const name = await askName(rl, true);
+  const { destRaw } = await askDest(rl, name, true);
+  const site = await askSite(rl, true);
+  const host = await askHost(rl, true);
+  explain(EXPLAIN.supabase);
+  const supabase = await askYesNo(rl, 'Enable Supabase stub?', false);
+  explain(EXPLAIN.git);
+  const git = await askYesNo(rl, 'git init in the new folder?', true);
+  return { name, destRaw, site, host, supabase, git, inPlace: false };
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
       name: { type: 'string' },
       site: { type: 'string' },
       out: { type: 'string' },
+      dest: { type: 'string' },
       host: { type: 'string' },
       supabase: { type: 'boolean' },
       git: { type: 'boolean' },
@@ -354,45 +503,67 @@ async function main() {
   }
 
   const inPlace = Boolean(values['in-place']);
-  if (inPlace && values.out) {
-    throw new Error('Use either --in-place or --out, not both.');
+  const destOpt = destFlag(values);
+  if (inPlace && destOpt) {
+    throw new Error('Use either --in-place or --dest/--out, not both.');
   }
 
-  const name =
-    values.name ?? (await prompt('App name (kebab-case)', currentFolderName(sourceRoot)));
-  validateName(name);
+  const rich = Boolean(input.isTTY && process.argv.slice(2).length === 0);
 
-  const site = values.site ?? (await prompt('Public site URL', DEFAULT_SITE));
-  validateSite(site);
-
-  const hostRaw =
-    values.host ??
-    (await prompt('Host (netlify, or none = I\'ll configure deploy myself)', 'netlify'));
-  const host = normalizeHost(hostRaw);
-
-  const supabase =
-    values.supabase ?? (input.isTTY ? await promptYesNo('Enable Supabase stub?', false) : false);
-
+  let name;
+  let destRaw;
+  let site;
+  let host;
+  let supabase;
   let git;
-  if (inPlace) {
-    git = false;
-    if (values.git && !values['no-git']) {
-      console.log('git init is only for spawned folders; skipped --in-place.');
+
+  if (rich) {
+    const rl = createInterface({ input, output });
+    try {
+      console.log('Spawn a new Angular app from this template. This checkout stays put.\n');
+      const answers = await collectFromHuman(rl);
+      ({ name, destRaw, site, host, supabase, git } = answers);
+    } finally {
+      rl.close();
     }
-  } else if (values['no-git']) {
-    git = false;
-  } else if (values.git === true) {
-    git = true;
   } else {
-    git = input.isTTY ? await promptYesNo('git init in the new folder?', true) : true;
+    name = values.name ?? (await prompt('App name (kebab-case)', currentFolderName(sourceRoot)));
+    validateName(name);
+
+    if (!inPlace) {
+      destRaw = destOpt ?? (input.isTTY ? await prompt('Destination folder', path.join('..', name)) : path.join('..', name));
+    }
+
+    site = values.site ?? (await prompt('Public site URL', DEFAULT_SITE));
+    validateSite(site);
+
+    const hostRaw =
+      values.host ??
+      (await prompt('Host (netlify, or none = I\'ll configure deploy myself)', 'netlify'));
+    host = normalizeHost(hostRaw);
+
+    supabase =
+      values.supabase ?? (input.isTTY ? await promptYesNo('Enable Supabase stub?', false) : false);
+
+    if (inPlace) {
+      git = false;
+      if (values.git && !values['no-git']) {
+        console.log('git init is only for spawned folders; skipped --in-place.');
+      }
+    } else if (values['no-git']) {
+      git = false;
+    } else if (values.git === true) {
+      git = true;
+    } else {
+      git = input.isTTY ? await promptYesNo('git init in the new folder?', true) : true;
+    }
   }
 
   const appTitle = kebabToTitle(name);
   let destDir = sourceRoot;
 
   if (!inPlace) {
-    const outRaw = values.out ?? (await prompt('Output folder', path.join('..', name)));
-    destDir = path.resolve(process.cwd(), outRaw);
+    destDir = path.resolve(process.cwd(), destRaw ?? path.join('..', name));
     if (path.resolve(destDir) === path.resolve(sourceRoot)) {
       throw new Error('Destination is the template root. Use --in-place to restamp this checkout.');
     }

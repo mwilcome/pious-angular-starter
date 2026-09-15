@@ -12,12 +12,13 @@ Official refs:
 
 ## Spawn vs in-place
 
-This checkout is a **template**. Prefer spawning a new app over restamping the starter.
+This checkout is a **template**. Two front doors, same engine (`scripts/create.mjs`: copy → stamp → optional git).
 
-- Default `npm run create`: copy into `--out` (default `../<name>`), stamp identity there, leave this repo usable as a template. Copy skips `node_modules`, `.git`, `dist`, `.angular`, `coverage`, `.env`, and `.env.*`.
+- **Humans:** `./scripts/spawn.sh` (macOS/Linux) or `scripts/spawn.ps1` / `scripts/spawn.cmd` (Windows). Each question prints a plain explanation first. `npm run create` with no flags is the same explained Q&A via Node (Windows-friendly).
+- **AI:** `npm run create -- --name my-app --dest ../my-app --site … --host netlify|none --no-git`. `--dest` and `--out` are aliases. Copy skips `node_modules`, `.git`, `dist`, `.angular`, `coverage`, `.env`, and `.env.*`.
 - `--in-place`: restamp this checkout without copy (package name, titles, publish path, `src/app/core/site.ts`, README markers). Does not rename the folder on disk.
 
-`git init` (default yes, ask) runs in the **new** folder only. Never add a GitHub remote or push from the script.
+`git init` (default yes on spawn) runs in the **new** folder only. Never add a GitHub remote or push from the script.
 
 ## Generate
 
