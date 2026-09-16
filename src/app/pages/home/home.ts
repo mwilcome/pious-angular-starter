@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { appTitle, siteUrl } from '../../core/site';
 
+/** Starter home. Replace the template copy with your landing page. */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],

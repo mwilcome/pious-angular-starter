@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { NotFound } from './not-found';
 
+/** Example Vitest spec. Replace with tests for your features. */
 describe('NotFound', () => {
   let fixture: ComponentFixture<NotFound>;
 
@@ -15,13 +16,8 @@ describe('NotFound', () => {
     await fixture.whenStable();
   });
 
-  it('should create', () => {
-    expect(fixture.componentInstance).toBeTruthy();
-  });
-
-  it('should link back home', () => {
+  it('renders its template', () => {
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('h1')?.textContent).toContain('Not found');
-    expect(el.querySelector('a[href="/"]')?.textContent).toContain('Home');
+    expect(el.querySelector('h1')).toBeTruthy();
   });
 });

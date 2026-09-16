@@ -26,7 +26,9 @@ Use `npx ng generate`. New components: standalone, `ChangeDetectionStrategy.OnPu
 
 Pages live under `src/app/pages/`. Shared identity is `src/app/core/site.ts` (`appName`, `appTitle`, `siteUrl`) — restamp it with `npm run create`, do not hardcode a personal domain.
 
-Landing route is eager; `lab` and `**` are `loadComponent`. Keep the wildcard last. Route `title` values are composed by `AppTitleStrategy`.
+Landing route is eager; `routing-example` and `**` are `loadComponent`. Keep the wildcard last. Route `title` values are composed by `AppTitleStrategy`.
+
+Tests use Vitest (`ng test` / `npm test`). Specs are short examples of zoneless TestBed tests (`await fixture.whenStable()`, not `detectChanges()`) and `RouterTestingHarness` for routes. They are not a product suite. Keep them green out of the box.
 
 ## Hosting
 

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
+/** Starter 404. Keep a wildcard route; replace the copy as needed. */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink],

@@ -1,12 +1,14 @@
 import { Routes } from '@angular/router';
 import { Home } from './pages/home/home';
 
+/** Starter routes. Replace the example path with real features; keep `**` last. */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', title: 'Home', component: Home },
   {
-    path: 'lab',
-    title: 'Lab',
-    loadComponent: () => import('./pages/lab/lab').then((m) => m.Lab),
+    // Example lazy route. Delete this entry and pages/routing-example in a real app.
+    path: 'routing-example',
+    title: 'Routing example',
+    loadComponent: () => import('./pages/routing-example/routing-example').then((m) => m.RoutingExample),
   },
   {
     path: '**',

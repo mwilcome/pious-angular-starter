@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 
+/** Example page. Replace with a real feature. */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  selector: 'app-lab',
-  styleUrl: './lab.scss',
-  templateUrl: './lab.html',
+  selector: 'app-routing-example',
+  styleUrl: './routing-example.scss',
+  templateUrl: './routing-example.html',
 })
-export class Lab {
+export class RoutingExample {
   protected readonly showHint = signal(false);
 
   protected toggleHint(): void {

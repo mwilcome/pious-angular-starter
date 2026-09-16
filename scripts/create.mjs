@@ -313,7 +313,7 @@ function shipBlock(name, host) {
 npm run build
 \`\`\`
 
-Static output is \`dist/${name}/browser\`. Wire your own host; configure history fallback so unknown paths serve \`index.html\`.
+Static files land in \`dist/${name}/browser\`. Point your host at that folder. Unknown URLs need to serve \`index.html\`.
 <!-- /ship-block -->`;
   }
 
@@ -322,7 +322,7 @@ Static output is \`dist/${name}/browser\`. Wire your own host; configure history
 npm run build
 \`\`\`
 
-In Netlify: Import from GitHub and point the site at this repo. \`netlify.toml\` already publishes \`dist/${name}/browser\` and rewrites \`/*\` to \`/index.html\`. Don't add the Netlify Angular SSR plugin. Doesn't log into Netlify or store credentials.
+Import the GitHub repo in Netlify. \`netlify.toml\` publishes \`dist/${name}/browser\` and sends unknown paths to \`/index.html\`. Don't add the Angular SSR plugin. Nothing here logs into Netlify or saves credentials.
 <!-- /ship-block -->`;
 }
 

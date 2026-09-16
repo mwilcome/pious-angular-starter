@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { appTitle, siteUrl } from '../../core/site';
 import { Home } from './home';
 
+/** Example Vitest spec. Replace with tests for your features. */
 describe('Home', () => {
   let fixture: ComponentFixture<Home>;
 
@@ -16,14 +16,8 @@ describe('Home', () => {
     await fixture.whenStable();
   });
 
-  it('should create', () => {
-    expect(fixture.componentInstance).toBeTruthy();
-  });
-
-  it('should render the stamped title, site URL, and Lab link', () => {
+  it('renders its template', () => {
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('h1')?.textContent).toContain(appTitle);
-    expect(el.textContent).toContain(siteUrl);
-    expect(el.querySelector('a[href="/lab"]')?.textContent).toContain('Lab');
+    expect(el.querySelector('h1')).toBeTruthy();
   });
 });
