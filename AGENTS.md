@@ -15,7 +15,7 @@ Official refs:
 This checkout is a **template**. Two front doors, same engine (`scripts/create.mjs`: copy → stamp → optional git).
 
 - **Humans:** `./scripts/spawn.sh` (macOS/Linux) or `scripts/spawn.ps1` / `scripts/spawn.cmd` (Windows). Each question prints a plain explanation first. `npm run create` with no flags is the same explained Q&A via Node (Windows-friendly).
-- **AI:** `npm run create -- --name my-app --dest ../my-app --site … --host netlify|none --no-git`. `--dest` and `--out` are aliases. Copy skips `node_modules`, `.git`, `dist`, `.angular`, `coverage`, `.env`, and `.env.*`.
+- **AI:** `npm run create -- --name my-app --title "My App" --dest ../my-app --site … --host netlify|none --no-git`. `--dest` and `--out` are aliases. `--title` is the display name (tab, `site.ts` `appTitle`); default is Title Case of `--name`. Copy skips `node_modules`, `.git`, `dist`, `.angular`, `coverage`, `.env`, and `.env.*`.
 - `--in-place`: restamp this checkout without copy (package name, titles, publish path, `src/app/core/site.ts`, README markers). Does not rename the folder on disk.
 
 `git init` (default yes on spawn) runs in the **new** folder only. Never add a GitHub remote or push from the script.

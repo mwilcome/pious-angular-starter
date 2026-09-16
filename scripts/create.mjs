@@ -61,9 +61,10 @@ function usage() {
            Windows: scripts\\spawn.ps1  or  scripts\\spawn.cmd
            or: npm run create          (same questions, via Node)
 
-  AI:      npm run create -- --name my-app --dest ../my-app --site ${DEFAULT_SITE} --host netlify --no-git
+  AI:      npm run create -- --name my-app --title "My App" --dest ../my-app --site ${DEFAULT_SITE} --host netlify --no-git
 
-  --name <kebab-case>   App name
+  --name <kebab-case>   App name (package, angular project, dist/<name>/browser, default folder)
+  --title <text>        Display title (tab, site.ts appTitle). Default: Title Case of --name
   --site <url>          Public site URL (default ${DEFAULT_SITE})
   --dest <dir>          Copy destination (default ../<name>); --out is an alias
   --in-place            Restamp this checkout; do not copy
@@ -334,9 +335,9 @@ function replaceMarked(md, tag, replacement) {
   return md.replace(re, replacement);
 }
 
-function restampReadme(target, newName, site, host) {
+function restampReadme(target, newName, site, host, appTitle) {
   let md = target.read('README.md');
-  md = md.replace(/^# .+$/m, `# ${newName}`);
+  md = md.replace(/^# .+$/m, `# ${appTitle}`);
   md = replaceMarked(md, 'site-url', `<!-- site-url -->${site}<!-- /site-url -->`);
   md = replaceMarked(md, 'ship-block', shipBlock(newName, host));
   target.write('README.md', md);
@@ -477,6 +478,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       name: { type: 'string' },
+      title: { type: 'string' },
       site: { type: 'string' },
       out: { type: 'string' },
       dest: { type: 'string' },
@@ -552,7 +554,7 @@ async function main() {
     }
   }
 
-  const appTitle = kebabToTitle(name);
+  const appTitle = values.title?.trim() || kebabToTitle(name);
   let destDir = sourceRoot;
 
   if (!inPlace) {
@@ -571,7 +573,7 @@ async function main() {
   applyHost(target, name, site, host);
   restampIndexTitle(target, appTitle);
   restampAngularJson(target, oldName, name);
-  restampReadme(target, name, site, host);
+  restampReadme(target, name, site, host, appTitle);
   restampSite(target, name, appTitle, site);
   restampLicense(target, name);
 

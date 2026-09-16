@@ -42,7 +42,8 @@ npm run create -- --name my-app --dest ../my-app --site https://example.netlify.
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--name` | prompt / current folder | kebab-case app name |
+| `--name` | prompt / current folder | kebab-case app name (package, angular project, dist folder) |
+| `--title` | Title Case of `--name` | display title (browser tab, `site.ts` `appTitle`) |
 | `--site` | `https://example.netlify.app` | public site URL |
 | `--dest` (`--out`) | `../<name>` | destination folder (copy mode) |
 | `--in-place` | off | rewrite this checkout, no copy |
