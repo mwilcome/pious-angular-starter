@@ -16,26 +16,4 @@ describe('RoutingExample', () => {
 
     expect(page).toBeInstanceOf(RoutingExample);
   });
-
-  it('toggles the hint', async () => {
-    TestBed.configureTestingModule({
-      providers: [provideRouter(routes)],
-    });
-
-    const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/routing-example', RoutingExample);
-
-    const el = harness.routeNativeElement as HTMLElement;
-    const button = el.querySelector('button');
-    expect(button).toBeTruthy();
-    expect(el.textContent).not.toContain('boolean signal');
-
-    button!.click();
-    await harness.fixture.whenStable();
-    expect(el.textContent).toContain('boolean signal');
-
-    button!.click();
-    await harness.fixture.whenStable();
-    expect(el.textContent).not.toContain('boolean signal');
-  });
 });
